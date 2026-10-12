@@ -1,0 +1,61 @@
+name: Release Please
+
+# Keeps a release PR open on main. Merging it creates the release vX.Y.Z, and this workflow then
+# moves the plain tag vX to the same commit, so `uses: horopter-dev/record-action@vX` follows the
+# latest release of that major version. vX is a tag, not a release: with immutable releases,
+# only vX.Y.Z is ever published.
+#
+# The App token, not GITHUB_TOKEN, is what lets the release PR run CI: events caused by
+# GITHUB_TOKEN start no workflows.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    if: github.repository_owner == 'horopter-dev'
+    steps:
+      - id: create_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.SEMANTIC_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SEMANTIC_RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          # This repository only, and only what release-please needs: contents (branches,
+          # tags, releases) and pull-requests (the release PR and its labels).
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.create_token.outputs.token }}
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Move the major version tag
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.create_token.outputs.token }}
+          REPO: ${{ github.repository }}
+          MAJOR: v${{ steps.release.outputs.major }}
+          SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$REPO/git/ref/tags/$MAJOR" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$REPO/git/refs/tags/$MAJOR" -f "sha=$SHA" -F force=true
+          else
+            gh api -X POST "repos/$REPO/git/refs" -f "ref=refs/tags/$MAJOR" -f "sha=$SHA"
+          fi
+          echo "::notice::$MAJOR now points at $SHA"

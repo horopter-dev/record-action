@@ -1,0 +1,6 @@
+[tools]
+# Read by CI through jdx/mise-action, so a runner and a dev box run the same versions.
+bats = "1.14.0"
+prek = "0.5.5"
+shellcheck = "0.11.0"
+shfmt = "3.14.1"

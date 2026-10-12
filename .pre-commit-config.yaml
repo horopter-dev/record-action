@@ -1,0 +1,44 @@
+# Without this, `prek install` wires only the pre-commit stage and commit messages go unlinted.
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
+  # The maintained fork: upstream rhysd/actionlint stopped at 1.7.12, which rejects the
+  # ubuntu-26.04 runner label.
+  - repo: https://github.com/kjanat/actionlint
+    rev: v1.17.0
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.30.1
+    hooks:
+      - id: zizmor
+
+  # shellcheck and shfmt from mise.toml, so the hook and CI run the versions pinned there.
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck -x
+        language: system
+        types: [shell]
+      - id: shfmt
+        name: shfmt
+        entry: shfmt -i 2 -bn -ci -sr -d
+        language: system
+        types: [shell]

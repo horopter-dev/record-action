@@ -1,0 +1,106 @@
+name: Bump horo
+
+# Opens a PR pinning horopter's latest release: its version and each platform's sha256, read from
+# the release's checksums.txt. A pin bump is a fix: unless the new horo changes behaviour the
+# action exposes, in which case the PR's title is edited before merging.
+#
+# horopter's releases are private until it goes public, and this workflow reads them anonymously,
+# so until then it skips with a notice.
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: bump-horo
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    if: github.repository_owner == 'horopter-dev'
+    steps:
+      - id: latest
+        name: Find horopter's latest release
+        env:
+          HOROPTER: horopter-dev/horopter
+        run: |
+          set -euo pipefail
+          releases="https://github.com/$HOROPTER/releases"
+          read -r status url < <(curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' \
+            "$releases/latest")
+          case "$status $url" in
+            "302 $releases/tag/v"*) echo "version=${url##*/}" >> "$GITHUB_OUTPUT" ;;
+            404*) echo "::notice::horopter has no public release: nothing to bump" ;;
+            *)
+              echo "::error::$releases/latest answered $status, not a redirect to a release"
+              exit 1
+              ;;
+          esac
+
+      - if: steps.latest.outputs.version
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: pin
+        if: steps.latest.outputs.version
+        env:
+          VERSION: ${{ steps.latest.outputs.version }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 3 \
+            "https://github.com/horopter-dev/horopter/releases/download/$VERSION/checksums.txt" \
+            | scripts/pin-horo.sh "$VERSION" horo.env
+          if git diff --quiet; then
+            echo "::notice::horo $VERSION is already pinned"
+          else
+            echo changed=true >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: create_token
+        if: steps.pin.outputs.changed
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.SEMANTIC_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SEMANTIC_RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open or update the bump PR
+        if: steps.pin.outputs.changed
+        env:
+          GH_TOKEN: ${{ steps.create_token.outputs.token }}
+          VERSION: ${{ steps.latest.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          branch="bump-horo/$VERSION"
+          title="fix: run horo $VERSION"
+          # The commit goes through the API, so it is signed by the App and needs no push
+          # credential in the checkout.
+          base="$(gh api "repos/$REPO/git/ref/heads/main" -q .object.sha)"
+          blob="$(gh api "repos/$REPO/git/blobs" -f encoding=base64 \
+            -f "content=$(base64 -w0 horo.env)" -q .sha)"
+          tree="$(gh api "repos/$REPO/git/trees" -f "base_tree=$base" \
+            -f 'tree[][path]=horo.env' -f 'tree[][mode]=100644' -f 'tree[][type]=blob' \
+            -f "tree[][sha]=$blob" -q .sha)"
+          commit="$(gh api "repos/$REPO/git/commits" -f "message=$title" -f "tree=$tree" \
+            -f "parents[]=$base" -q .sha)"
+          if gh api "repos/$REPO/git/ref/heads/$branch" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$REPO/git/refs/heads/$branch" -f "sha=$commit" -F force=true
+          else
+            gh api -X POST "repos/$REPO/git/refs" -f "ref=refs/heads/$branch" -f "sha=$commit"
+          fi
+          open="$(gh pr list -R "$REPO" --head "$branch" --json number -q '.[].number')"
+          if [[ -z "$open" ]]; then
+            gh pr create -R "$REPO" --head "$branch" --base main --title "$title" \
+              --body "Pins horo $VERSION: its version and each platform's sha256, read from the
+          release's checksums.txt."
+          fi

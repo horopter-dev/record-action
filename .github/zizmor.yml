@@ -1,0 +1,6 @@
+rules:
+  # The action under test is this repository's root, and actionlint rejects the self-repository
+  # form `$/` without a path; every job checks the repository out before `uses: ./`.
+  self-repository:
+    ignore:
+      - ci.yaml

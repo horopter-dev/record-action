@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Stands in for horo run: records its arguments one per line, writes $FAKE_REPORT to --report,
+# runs the command after -- and exits with its code, or with $FAKE_HORO_EXIT when set.
+set -euo pipefail
+: "${HORO_ARGS:?}"
+printf '%s\n' "$@" > "$HORO_ARGS"
+env | grep '^HOROPTER_' > "$HORO_ARGS.env" || true
+report=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --report) report="$2" && shift ;;
+    --) shift && break ;;
+    *) ;;
+  esac
+  shift
+done
+if [[ -n "$report" && -n "${FAKE_REPORT:-}" ]]; then
+  cp "$FAKE_REPORT" "$report"
+fi
+if [[ -n "${FAKE_HORO_EXIT:-}" ]]; then
+  exit "$FAKE_HORO_EXIT"
+fi
+"$@"

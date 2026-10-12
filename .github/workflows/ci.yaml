@@ -1,0 +1,345 @@
+name: CI
+
+# Lints and unit-tests the action, then runs it as a workflow author would: every usage error,
+# the unsupported-platform and failed-download paths, and, once horopter's releases are public,
+# end to end against the release's compose stack.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hooks:
+    name: Hooks
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: prek shellcheck shfmt
+      - run: prek run --all-files --show-diff-on-failure --color=always
+
+  unit:
+    name: Unit (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04, macos-26]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          install_args: bats
+      - run: bats test/
+
+  empty-inputs:
+    name: An empty run or subject fails before anything runs
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: no-run
+        continue-on-error: true
+        uses: ./
+        with:
+          run: ""
+          subject: record-action/ci
+      - id: no-subject
+        continue-on-error: true
+        uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran"
+          subject: ""
+      - name: Both failed, and nothing ran
+        env:
+          NO_RUN: ${{ steps.no-run.outcome }}
+          NO_SUBJECT: ${{ steps.no-subject.outcome }}
+        run: |
+          set -euo pipefail
+          test "$NO_RUN" = failure
+          test "$NO_SUBJECT" = failure
+          test ! -e "$RUNNER_TEMP/ran"
+
+  matrix-without-name:
+    name: A matrix leg without name fails (${{ matrix.leg }})
+    strategy:
+      matrix:
+        leg: [a, b]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: record
+        continue-on-error: true
+        uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran"
+          subject: record-action/ci
+      - name: It failed, and the command did not run
+        env:
+          OUTCOME: ${{ steps.record.outcome }}
+        run: |
+          set -euo pipefail
+          test "$OUTCOME" = failure
+          test ! -e "$RUNNER_TEMP/ran"
+
+  no-matrix:
+    name: A job with no matrix needs no name
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran"
+          subject: record-action/ci
+      - run: test -e "$RUNNER_TEMP/ran"
+
+  unsupported-platform:
+    name: An unsupported platform runs unrecorded, or fails under strict
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran"
+          subject: record-action/ci
+      - id: exit-code
+        continue-on-error: true
+        uses: ./
+        with:
+          run: exit 3
+          subject: record-action/ci
+      - id: strict
+        continue-on-error: true
+        uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran-strict"
+          subject: record-action/ci
+          strict: "true"
+      - name: The command ran and its failure passed through; under strict nothing ran
+        env:
+          EXIT_CODE: ${{ steps.exit-code.outcome }}
+          STRICT: ${{ steps.strict.outcome }}
+        run: |
+          set -euo pipefail
+          test -e "$RUNNER_TEMP/ran"
+          test "$EXIT_CODE" = failure
+          test "$STRICT" = failure
+          test ! -e "$RUNNER_TEMP/ran-strict"
+
+  failed-download:
+    name: A failed download runs unrecorded, or fails under strict
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran"
+          subject: record-action/ci
+          horo-version: 0.404.0
+      - id: strict
+        continue-on-error: true
+        uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran-strict"
+          subject: record-action/ci
+          horo-version: 0.404.0
+          strict: "true"
+      - name: The command ran unrecorded; under strict nothing ran
+        env:
+          STRICT: ${{ steps.strict.outcome }}
+        run: |
+          set -euo pipefail
+          test -e "$RUNNER_TEMP/ran"
+          test "$STRICT" = failure
+          test ! -e "$RUNNER_TEMP/ran-strict"
+
+  # horopter's releases are private until it goes public, and this workflow's token cannot read
+  # another repository's. Until then the jobs that download horo are skipped with a notice.
+  horopter-public:
+    name: Is horopter public?
+    runs-on: ubuntu-26.04
+    permissions: {}
+    outputs:
+      public: ${{ steps.check.outputs.public }}
+    steps:
+      - id: check
+        env:
+          HOROPTER: horopter-dev/horopter
+        run: |
+          set -euo pipefail
+          status="$(curl -s -o /dev/null -w '%{http_code}' "https://github.com/$HOROPTER")"
+          case "$status" in
+            200) echo public=true >> "$GITHUB_OUTPUT" ;;
+            404)
+              echo "::notice::horopter is private: the jobs that download horo are skipped"
+              echo public=false >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::https://github.com/horopter-dev/horopter answered $status"
+              exit 1
+              ;;
+          esac
+
+  end-to-end:
+    name: End to end (${{ matrix.runner }})
+    needs: horopter-public
+    if: needs.horopter-public.outputs.public == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-26.04, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      HOROPTER_INGRESS_URL: http://localhost:8080
+      HOROPTER_EGRESS_URL: http://localhost:8081
+      # The development keys the release's compose stack issues.
+      HOROPTER_EGRESS_KEY: horo_dead00000002_11111111111111111111111111111111111111111111111111111111111111
+      DEV_INGRESS_KEY: horo_dead00000001_00000000000000000000000000000000000000000000000000000000000000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Start the release's compose stack
+        run: |
+          set -euo pipefail
+          source horo.env
+          releases=https://github.com/horopter-dev/horopter/releases/download
+          curl -fsSLO "$releases/v$HORO_VERSION/docker-compose.yaml"
+          docker compose up --detach --quiet-pull
+          curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8080/readyz
+          curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8081/readyz
+      - uses: ./
+        with:
+          run: "true"
+          subject: record-action/ci
+          name: ${{ matrix.runner }}-completed
+          key: ${{ env.DEV_INGRESS_KEY }}
+      - id: failed
+        continue-on-error: true
+        uses: ./
+        with:
+          run: "false"
+          subject: record-action/ci
+          name: ${{ matrix.runner }}-failed
+          key: ${{ env.DEV_INGRESS_KEY }}
+      - id: no-key
+        uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran-no-key"
+          subject: record-action/ci
+          name: ${{ matrix.runner }}-no-key
+      - id: no-key-strict
+        continue-on-error: true
+        uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran-no-key-strict"
+          subject: record-action/ci
+          name: ${{ matrix.runner }}-no-key-strict
+          strict: "true"
+      - name: One completed change and one failed, each under the convention's ref
+        env:
+          FAILED: ${{ steps.failed.outcome }}
+          NO_KEY_STRICT: ${{ steps.no-key-strict.outcome }}
+          RUN: ${{ github.repository }}/${{ github.run_id }}/${{ github.run_attempt }}
+          LEG: ${{ github.job }}/${{ matrix.runner }}
+        run: |
+          set -euo pipefail
+          REF="dev/$RUN/$LEG"
+          test "$FAILED" = failure
+          test -e "$RUNNER_TEMP/ran-no-key"
+          test "$NO_KEY_STRICT" = failure
+          test ! -e "$RUNNER_TEMP/ran-no-key-strict"
+          jq -e --arg ref "$REF-completed" '.change | .ref == $ref and .status == "completed"' \
+            < <(horo show --format json "$REF-completed")
+          jq -e --arg ref "$REF-failed" '.change | .ref == $ref and .status == "failed"' \
+            < <(horo show --format json "$REF-failed")
+
+  macos:
+    name: macOS arm64 installs, verifies and runs unrecorded without a key
+    needs: horopter-public
+    if: needs.horopter-public.outputs.public == 'true'
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          run: touch "$RUNNER_TEMP/ran"
+          subject: record-action/ci
+      - id: exit-code
+        continue-on-error: true
+        uses: ./
+        with:
+          run: exit 3
+          subject: record-action/ci
+      - name: The pinned horo is on the PATH, the command ran, and its failure passed through
+        env:
+          EXIT_CODE: ${{ steps.exit-code.outcome }}
+        run: |
+          set -euo pipefail
+          source horo.env
+          test "$(horo --version --format bare)" = "$HORO_VERSION"
+          test -e "$RUNNER_TEMP/ran"
+          test "$EXIT_CODE" = failure
+
+  horo-version:
+    name: A horo-version override installs after verifying its checksums.txt
+    needs: horopter-public
+    if: needs.horopter-public.outputs.public == 'true'
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./
+        with:
+          run: horo --version --format bare > "$RUNNER_TEMP/version"
+          subject: record-action/ci
+          horo-version: v0.11.2
+      - run: test "$(cat "$RUNNER_TEMP/version")" = 0.11.2
