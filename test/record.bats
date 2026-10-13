@@ -135,6 +135,20 @@ assert_not_run() {
   grep -qx "$RUNNER_TOOL_CACHE/horo/$HORO_VERSION/x64" "$GITHUB_PATH"
 }
 
+@test "the run input finds a downloaded horo first on its PATH" {
+  fake_release 9.9.9 linux_amd64 > /dev/null
+  INPUT_HORO_VERSION=9.9.9 INPUT_RUN="command -v horo > $RAN" record
+  [[ "$status" -eq 0 ]]
+  [[ "$(cat "$RAN")" = "$RUNNER_TOOL_CACHE/horo/9.9.9/x64/horo" ]]
+}
+
+@test "the run input finds a cached horo first on its PATH" {
+  seed_cache
+  INPUT_RUN="command -v horo > $RAN" record
+  [[ "$status" -eq 0 ]]
+  [[ "$(cat "$RAN")" = "$RUNNER_TOOL_CACHE/horo/$HORO_VERSION/x64/horo" ]]
+}
+
 @test "the pinned horo is verified against the committed sha256, not checksums.txt" {
   fake_release "$HORO_VERSION" linux_amd64 > /dev/null
   INPUT_RUN="touch $RAN" record

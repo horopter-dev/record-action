@@ -108,9 +108,9 @@ expected_sha256() {
   awk -v asset="$asset" '$2 == asset { print $1 }' <<< "$sums" | grep . || return 1
 }
 
-# install_horo <version> <platform>: puts horo in the tool cache and on the PATH, and sets
-# HORO_DIR to its directory. Returns 1 when the download failed; a checksum mismatch fails the
-# step outright.
+# install_horo <version> <platform>: puts horo in the tool cache and on the PATH, for the run
+# input and for later steps, and sets HORO_DIR to its directory. Returns 1 when the download
+# failed; a checksum mismatch fails the step outright.
 install_horo() {
   local version="$1" platform="$2" arch
   arch="$(tr '[:upper:]' '[:lower:]' <<< "$RUNNER_ARCH")"
@@ -128,6 +128,7 @@ install_horo() {
     touch "$dir.complete"
   fi
   echo "$dir" >> "$GITHUB_PATH"
+  export PATH="$dir:$PATH"
   HORO_DIR="$dir"
 }
 

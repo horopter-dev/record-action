@@ -75,6 +75,8 @@ runner's tool cache. A `horo-version` override is checked against that release's
 instead, and must be 0.11.0 or later, the first `horo` whose `run` reports what it recorded. A
 file that does not match its sha256 is never run: the step fails, whatever `strict` says.
 
+That `horo` is first on the `PATH` of the `run` command and of the job's later steps.
+
 ## Limits
 
 - **Runners:** Linux x64 and arm64, and macOS arm64. On any other runner the command runs
