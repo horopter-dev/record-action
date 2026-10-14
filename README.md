@@ -5,7 +5,7 @@ started, when it ended, and whether it completed or failed. Swap `run:` for this
 the thing the step changes:
 
 ```yaml
-- uses: horopter-dev/record-action@v1
+- uses: horopter-dev/record-action@v0
   with:
     subject: acme/prod
     key: ${{ secrets.HOROPTER_INGRESS_KEY }}
@@ -55,7 +55,7 @@ strategy:
   matrix:
     region: [eu, us]
 steps:
-  - uses: horopter-dev/record-action@v1
+  - uses: horopter-dev/record-action@v0
     with:
       subject: acme/prod-${{ matrix.region }}
       name: ${{ matrix.region }}
