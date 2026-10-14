@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+# shellcheck shell=bash
 # shellcheck disable=SC2154 # BATS_* are set by bats
 # Shared set-up: a clean environment that declares what it needs, stubs for the network and
 # for horo, and a fake runner. Loaded by every test file.
