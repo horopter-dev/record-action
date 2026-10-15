@@ -20,6 +20,7 @@ jobs:
   hooks:
     name: Hooks
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -38,6 +39,7 @@ jobs:
       matrix:
         runner: [ubuntu-26.04, macos-26]
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -52,6 +54,7 @@ jobs:
   empty-inputs:
     name: An empty run or subject fails before anything runs
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -60,13 +63,13 @@ jobs:
           persist-credentials: false
       - id: no-run
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: ""
           subject: record-action/ci
       - id: no-subject
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran"
           subject: ""
@@ -86,6 +89,7 @@ jobs:
       matrix:
         leg: [a, b]
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -94,7 +98,7 @@ jobs:
           persist-credentials: false
       - id: record
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran"
           subject: record-action/ci
@@ -109,13 +113,14 @@ jobs:
   no-matrix:
     name: A job with no matrix needs no name
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./
+      - uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran"
           subject: record-action/ci
@@ -124,6 +129,7 @@ jobs:
   unsupported-platform:
     name: An unsupported platform runs unrecorded, or fails under strict
     runs-on: windows-2025
+    timeout-minutes: 5
     permissions:
       contents: read
     defaults:
@@ -133,19 +139,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./
+      - uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran"
           subject: record-action/ci
       - id: exit-code
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: exit 3
           subject: record-action/ci
       - id: strict
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran-strict"
           subject: record-action/ci
@@ -164,20 +170,21 @@ jobs:
   failed-download:
     name: A failed download runs unrecorded, or fails under strict
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./
+      - uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran"
           subject: record-action/ci
           horo-version: 0.404.0
       - id: strict
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran-strict"
           subject: record-action/ci
@@ -197,6 +204,7 @@ jobs:
   horopter-public:
     name: Is horopter public?
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions: {}
     outputs:
       public: ${{ steps.check.outputs.public }}
@@ -228,6 +236,7 @@ jobs:
       matrix:
         runner: [ubuntu-26.04, ubuntu-26.04-arm]
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
     permissions:
       contents: read
     env:
@@ -249,7 +258,7 @@ jobs:
           docker compose up --detach --quiet-pull
           curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8080/readyz
           curl -fsS --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8081/readyz
-      - uses: ./
+      - uses: $/
         with:
           run: "true"
           subject: record-action/ci
@@ -257,21 +266,21 @@ jobs:
           key: ${{ env.DEV_INGRESS_KEY }}
       - id: failed
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: "false"
           subject: record-action/ci
           name: ${{ matrix.runner }}-failed
           key: ${{ env.DEV_INGRESS_KEY }}
       - id: no-key
-        uses: ./
+        uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran-no-key"
           subject: record-action/ci
           name: ${{ matrix.runner }}-no-key
       - id: no-key-strict
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran-no-key-strict"
           subject: record-action/ci
@@ -300,19 +309,20 @@ jobs:
     needs: horopter-public
     if: needs.horopter-public.outputs.public == 'true'
     runs-on: macos-26
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./
+      - uses: $/
         with:
           run: touch "$RUNNER_TEMP/ran"
           subject: record-action/ci
       - id: exit-code
         continue-on-error: true
-        uses: ./
+        uses: $/
         with:
           run: exit 3
           subject: record-action/ci
@@ -331,13 +341,14 @@ jobs:
     needs: horopter-public
     if: needs.horopter-public.outputs.public == 'true'
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./
+      - uses: $/
         with:
           run: horo --version --format bare > "$RUNNER_TEMP/version"
           subject: record-action/ci
