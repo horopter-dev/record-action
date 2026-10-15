@@ -18,12 +18,10 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
 
-  # The maintained fork: upstream rhysd/actionlint stopped at 1.7.12, which rejects the
-  # ubuntu-26.04 runner label.
-  - repo: https://github.com/kjanat/actionlint
-    rev: v1.17.0
+  - repo: https://github.com/jdx/jactionlint
+    rev: 1027f0a131ab98bc7e191d995bfa15dbed5bbf8f  # frozen: v2.2.0
     hooks:
-      - id: actionlint
+      - id: jactionlint
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: v1.30.1
