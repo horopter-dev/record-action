@@ -31,6 +31,10 @@ jobs:
         with:
           install_args: prek shellcheck shfmt
       - run: prek run --all-files --show-diff-on-failure --color=always
+        env:
+          # jactionlint's online rules, which replace zizmor's online audits.
+          JACTIONLINT_ONLINE: 1
+          GITHUB_TOKEN: ${{ github.token }}
 
   unit:
     name: Unit (${{ matrix.runner }})
