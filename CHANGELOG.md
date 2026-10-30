@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/horopter-dev/record-action/compare/v0.1.2...v0.1.3) (2026-10-30)
+
+
+### Bug Fixes
+
+* run horo v0.14.2 ([#15](https://github.com/horopter-dev/record-action/issues/15)) ([bcee4e7](https://github.com/horopter-dev/record-action/commit/bcee4e70b0d9ff916f81e6f11fcc6217a62e1413))
+
 ## [0.1.2](https://github.com/horopter-dev/record-action/compare/v0.1.1...v0.1.2) (2026-10-14)
 
 
